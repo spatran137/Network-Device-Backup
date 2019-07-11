@@ -1,4 +1,4 @@
 language: python
 install:
   - pip install -r requirements.txt
-script: python3 Diagraph_Controller_Backup.py || Diagraph_Controller_Backup.py
+script: python3 Python_Network_Backup.py || Python_Network_Backup.py
