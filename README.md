@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/spatran137/Network-Device-Backup.svg?branch=master)](https://travis-ci.org/spatran137/Network-Device-Backup)
-
 # Python-Network-Backup
 Python-Network-Backup is a simple python network backup tool that is currently compatible with with Ubiquiti EdgeSwitch, Ubiquiti AirOS, Motorola RFS, and SonicWall.  The current method of backup is an ssh session that then scraps the running configuration from the shell.  However, for SonicWalls the script will run a backup to FTP.
 
