@@ -62,9 +62,7 @@ mailserver=mail.yourdomain.com
 
 Now that the config.ini has been modified you need to add your devices to the device.csv:
 
-
-
-End with an example of getting some data out of the system or using it for a little demo
+Once you are done you will need to delete the First Line of text since this will cause the program to fail.
 
 ## Built With
 
