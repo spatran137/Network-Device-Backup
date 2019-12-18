@@ -66,9 +66,9 @@ Once you are done you will need to delete the First Line of text since this will
 
 ## Built With
 
-* [paramiko](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [configparser](https://maven.apache.org/) - Dependency Management
-* [schedule](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+* [paramiko](http://www.dropwizard.io/1.0.2/docs/) - SSH
+* [configparser](https://maven.apache.org/) - Read Config Files
+* [schedule](https://rometools.github.io/rome/) - To schedule that backup tasks
 
 ## Authors
 
