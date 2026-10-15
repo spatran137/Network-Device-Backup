@@ -6,7 +6,7 @@ The new CLI is read-only and currently enables only Cisco IOS / IOS-XE and Ubiqu
 
 ```bash
 sudo apt update
-sudo apt install -y git python3-venv python3-pip openssh-client
+sudo apt install -y git python3-venv python3-pip openssh-client nano
 sudo useradd --system --home-dir /var/lib/network-backup --shell /usr/sbin/nologin network-backup
 # git clone creates its destination; do not create that directory first.
 sudo git clone --branch modernization/v1.1 https://github.com/spatran137/Network-Device-Backup.git /opt/network-device-backup
@@ -21,22 +21,90 @@ sudo install -d -o network-backup -g network-backup -m 0700 /var/lib/network-bac
 
 ## Inventory and host keys
 
+Copy the version-controlled sample inventory and edit your **local** copy with Nano. The sample IPs below (`192.0.2.10` and `192.0.2.11`) are documentation placeholders, **not actual device addresses**.
+
 ```bash
 sudo install -o root -g root -m 0644 /opt/network-device-backup/examples/devices.profiles.example.json /etc/network-backup/devices.json
-sudoedit /etc/network-backup/devices.json
+sudo nano /etc/network-backup/devices.json
 ```
 
-Replace the example lab addresses and profile names with your test devices. Keep the inventory free of passwords. Independently obtain and verify every device's SSH host-key fingerprint against the device console or another trusted channel. Only after verification, place matching `known_hosts` entries into `/etc/network-backup/known_hosts` (for nonstandard SSH ports use `[host]:port`). **Do not blindly trust the output of `ssh-keyscan`**; it does not authenticate keys. Set owner `root:root` and mode `0644` for this file. For initial inventory validation:
+Example contents of `/etc/network-backup/devices.json`:
+
+```json
+{
+  "devices": [
+    {
+      "name": "lab-catalyst",
+      "host": "192.0.2.10",
+      "device_type": "cisco_ios",
+      "credential_profile": "cisco-switches"
+    },
+    {
+      "name": "lab-edgeswitch",
+      "host": "192.0.2.11",
+      "device_type": "ubiquiti_edgeswitch",
+      "credential_profile": "ubiquiti-switches"
+    }
+  ]
+}
+```
+
+Replace `host` with each switch's management IP or DNS name; choose a unique, safe `name` for each device. `device_type` must be exactly `cisco_ios` or `ubiquiti_edgeswitch` for this experimental engine. `credential_profile` references a matching name in the **separate** `profiles.json` credential file below. Devices can share profiles if they use the same login. An optional `"port": 2222` field changes SSH from its default port 22. **Never put passwords in `devices.json`.**
+
+**SSH host keys:** The engine requires a trusted `/etc/network-backup/known_hosts` file. Independently obtain each device's SSH host-key fingerprint from its console or another trusted channel. `ssh-keyscan` only retrieves the presented key; **it does not verify identity**. To stage keys for the two example IPs, run:
+
+```bash
+ssh-keyscan -T 10 192.0.2.10 192.0.2.11 > /tmp/network-backup-hostkeys
+ssh-keygen -lf /tmp/network-backup-hostkeys
+```
+
+**STOP and compare** each fingerprint with its independently verified fingerprint. Only after both keys match, install the staged file:
+
+```bash
+sudo install -o root -g root -m 0644 /tmp/network-backup-hostkeys /etc/network-backup/known_hosts
+rm /tmp/network-backup-hostkeys
+```
+
+Replace those IPs with your real host addresses in both commands. For a nonstandard SSH port, scan the host separately with `ssh-keyscan -p PORT HOST`; the corresponding `known_hosts` entry must match `[host]:port`. If a key does not match, **do not install it**—investigate first.
+
+Validate the device inventory without opening any device connections:
 
 ```bash
 sudo /opt/network-device-backup/.venv/bin/network-backup --inventory /etc/network-backup/devices.json --list
 ```
 
+`sudoedit` (equivalent to `sudo -e`) is also valid on Ubuntu, but this guide uses `sudo nano` consistently; Nano is installed in the prerequisite step.
+
 ## Set up encrypted credential profiles
 
 The Python engine reads a JSON profile file; encryption is performed **by systemd**, not by the application. Profile names in the inventory must match the entries in the profile file. A profile can be shared among many devices. The example file contains **placeholder values only**.
 
-1. Securely stage a profile file, with real credentials, **outside the repository**. For example, copy the template to `/etc/network-backup/profiles.json` with `root:root` ownership and mode `0600`, then edit it with `sudoedit`. Do not use real secrets in shell command arguments or Git.
+1. Copy the placeholder credential template **outside the repository** as a root-owned, owner-readable-only file, then edit it. The filename is kept separate from `devices.json`:
+
+```bash
+sudo install -o root -g root -m 0600 /opt/network-device-backup/examples/credential-profiles.example.json /etc/network-backup/profiles.json
+sudo nano /etc/network-backup/profiles.json
+```
+
+Example contents of `/etc/network-backup/profiles.json` (replace every placeholder with your own values):
+
+```json
+{
+  "profiles": {
+    "cisco-switches": {
+      "username": "REPLACE_ME",
+      "password": "REPLACE_ME",
+      "enable_secret": "REPLACE_ME"
+    },
+    "ubiquiti-switches": {
+      "username": "REPLACE_ME",
+      "password": "REPLACE_ME"
+    }
+  }
+}
+```
+
+`enable_secret` is optional; omit it if the Cisco device does not require a separate enable password. The `cisco-switches` and `ubiquiti-switches` keys must match the inventory's `credential_profile` values exactly. Do not commit this file, paste real passwords into shell command arguments, or give it group/world read access. Verify its permissions with `sudo stat -c '%a %U:%G %n' /etc/network-backup/profiles.json` (expected `600 root:root`).
 2. Encrypt it on the deployment host:
 
 ```bash
