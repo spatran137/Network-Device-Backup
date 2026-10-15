@@ -63,3 +63,6 @@ optional scheduling, structured logging, and a Docker job runner.
 
 Existing LICENSE is GPL-3.0 text, source comments say LGPL-3.0, and README
 describes MIT. Resolve this before changing license claims or redistributing.
+
+For an Ubuntu service account, protected credential profiles, systemd encrypted
+credentials, and a 05:00 daily timer, see [Ubuntu deployment](ubuntu-deployment.md).

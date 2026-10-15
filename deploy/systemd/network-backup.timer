@@ -1,0 +1,11 @@
+[Unit]
+Description=Run network configuration backups daily
+
+[Timer]
+OnCalendar=*-*-* 05:00:00
+Persistent=true
+AccuracySec=1min
+Unit=network-backup.service
+
+[Install]
+WantedBy=timers.target

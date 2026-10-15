@@ -10,12 +10,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping
 import json
 import os
 import re
 import tempfile
 
+from .credentials import Credential
+from .errors import BackupError
 
 # Do not enable other device families until their commands and backup formats
 # have been verified on hardware. In particular airOS != EdgeSwitch.
@@ -31,19 +33,17 @@ ERROR_RE = re.compile(
 )
 
 
-class BackupError(Exception):
-    """An expected inventory, transport, or backup validation failure."""
-
 
 @dataclass(frozen=True)
 class Device:
     name: str
     host: str
     device_type: str
-    username_env: str
-    password_env: str
+    username_env: str | None = None
+    password_env: str | None = None
     enable_secret_env: str | None = None
     port: int = 22
+    credential_profile: str | None = None
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ def load_inventory(path: str | Path) -> list[Device]:
     for index, item in enumerate(parsed["devices"], start=1):
         if not isinstance(item, dict):
             raise BackupError(f"Device {index}: expected an object")
-        required = ("name", "host", "device_type", "username_env", "password_env")
+        required = ("name", "host", "device_type")
         if any(not isinstance(item.get(k), str) or not item[k].strip() for k in required):
             raise BackupError(f"Device {index}: missing or invalid required field")
         name = item["name"]
@@ -82,16 +82,26 @@ def load_inventory(path: str | Path) -> list[Device]:
         kind = item["device_type"]
         if kind not in COMMANDS:
             raise BackupError(f"Device {index}: unsupported device type {kind!r}")
-        for key in ("username_env", "password_env", "enable_secret_env"):
+        profile = item.get("credential_profile")
+        if profile is not None and (not isinstance(profile, str) or not NAME_RE.fullmatch(profile)):
+            raise BackupError(f"Device {index}: invalid credential profile name")
+        env_names = ("username_env", "password_env", "enable_secret_env")
+        for key in env_names:
             value = item.get(key)
             if value is not None and (not isinstance(value, str) or not ENV_RE.fullmatch(value)):
                 raise BackupError(f"Device {index}: invalid environment-variable name in {key}")
+        if profile:
+            if any(item.get(key) is not None for key in env_names):
+                raise BackupError(f"Device {index}: select either a credential profile or environment variables")
+        elif not item.get("username_env") or not item.get("password_env"):
+            raise BackupError(f"Device {index}: a credential profile or username/password environment variables are required")
         port = item.get("port", 22)
         if type(port) is not int or not 1 <= port <= 65535:
             raise BackupError(f"Device {index}: port must be 1 through 65535")
         devices.append(Device(name=name, host=item["host"], device_type=kind,
-                              username_env=item["username_env"], password_env=item["password_env"],
-                              enable_secret_env=item.get("enable_secret_env"), port=port))
+                              username_env=item.get("username_env"), password_env=item.get("password_env"),
+                              enable_secret_env=item.get("enable_secret_env"), port=port,
+                              credential_profile=profile))
     return devices
 
 
@@ -114,12 +124,32 @@ def _netmiko_connect(**options):
     return ConnectHandler(**options)
 
 
+def _credentials_for(device: Device, profiles: Mapping[str, Credential] | None) -> Credential:
+    if device.credential_profile is not None:
+        if profiles is None or device.credential_profile not in profiles:
+            raise BackupError(f"Missing credential profile for {device.name}")
+        return profiles[device.credential_profile]
+    if not device.username_env or not device.password_env:
+        raise BackupError(f"No credentials configured for {device.name}")
+    username = os.environ.get(device.username_env)
+    password = os.environ.get(device.password_env)
+    if not username or not password:
+        raise BackupError(f"Missing credentials in environment for {device.name}")
+    secret = None
+    if device.enable_secret_env:
+        secret = os.environ.get(device.enable_secret_env)
+        if not secret:
+            raise BackupError(f"Missing enable secret in environment for {device.name}")
+    return Credential(username, password, secret)
+
+
 def backup_device(
     device: Device,
     output_root: str | Path,
     known_hosts: str | Path,
     *,
     connector: Callable | None = None,
+    credential_profiles: Mapping[str, Credential] | None = None,
 ) -> BackupResult:
     """Read a running configuration and write it atomically with restrictive mode.
 
@@ -131,22 +161,13 @@ def backup_device(
     hostfile = Path(known_hosts).expanduser()
     if not hostfile.is_file() or hostfile.stat().st_size == 0:
         raise BackupError("A populated SSH known_hosts file is required")
-    username = os.environ.get(device.username_env)
-    password = os.environ.get(device.password_env)
-    if not username or not password:
-        raise BackupError(f"Missing credentials in environment for {device.name}")
-    enable_secret = None
-    if device.enable_secret_env:
-        enable_secret = os.environ.get(device.enable_secret_env)
-        if not enable_secret:
-            raise BackupError(f"Missing enable secret in environment for {device.name}")
-
+    credentials = _credentials_for(device, credential_profiles)
     options = dict(
         device_type=device.device_type,
         host=device.host,
         port=device.port,
-        username=username,
-        password=password,
+        username=credentials.username,
+        password=credentials.password,
         ssh_strict=True,
         system_host_keys=False,
         alt_host_keys=True,
@@ -158,12 +179,12 @@ def backup_device(
         banner_timeout=15,
         timeout=15,
     )
-    if enable_secret is not None:
-        options["secret"] = enable_secret
+    if credentials.enable_secret is not None:
+        options["secret"] = credentials.enable_secret
     connect = connector or _netmiko_connect
     connection = connect(**options)
     try:
-        if enable_secret is not None:
+        if credentials.enable_secret is not None:
             connection.enable()
         output = connection.send_command(COMMANDS[device.device_type], read_timeout=60)
     finally:

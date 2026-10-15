@@ -298,3 +298,7 @@ known_hosts
 backups/
 devices.json
 *.cfg
+# Credential profiles and machine-bound systemd encrypted credentials
+profiles.json
+credentials.json
+*.cred

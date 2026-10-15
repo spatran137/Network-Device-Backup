@@ -1,0 +1,24 @@
+[Unit]
+Description=Network Device Backup (read-only, experimental)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=network-backup
+Group=network-backup
+WorkingDirectory=/var/lib/network-backup
+UMask=0077
+# Requires Ubuntu 24.04+ / systemd supporting LoadCredentialEncrypted.
+# Use LoadCredential=profiles.json:/etc/network-backup/profiles.json as a
+# plaintext source alternative, never enable both lines simultaneously.
+LoadCredentialEncrypted=profiles.json:/etc/network-backup/profiles.json.cred
+ExecStart=/opt/network-device-backup/.venv/bin/network-backup --inventory /etc/network-backup/devices.json --credentials-file %d/profiles.json --known-hosts /etc/network-backup/known_hosts --output /var/lib/network-backup/backups --all
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/network-backup/backups
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+{
+  "devices": [
+    {
+      "name": "lab-catalyst",
+      "host": "192.0.2.10",
+      "device_type": "cisco_ios",
+      "credential_profile": "cisco-switches"
+    },
+    {
+      "name": "lab-edgeswitch",
+      "host": "192.0.2.11",
+      "device_type": "ubiquiti_edgeswitch",
+      "credential_profile": "ubiquiti-switches"
+    }
+  ]
+}

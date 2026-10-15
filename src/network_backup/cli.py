@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .credentials import load_profiles
 from .engine import BackupError, backup_device, load_inventory
 
 
@@ -14,6 +15,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inventory", type=Path, required=True, help="JSON device inventory")
     parser.add_argument("--output", type=Path, default=Path("backups"))
     parser.add_argument("--known-hosts", type=Path, default=Path.home() / ".ssh" / "known_hosts")
+    parser.add_argument("--credentials-file", type=Path, help="Owner-only JSON credential profiles (optional)")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--list", action="store_true", help="List devices without network access")
     group.add_argument("--device", help="Back up exactly one named device")
@@ -37,10 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     if not devices:
         print("No devices selected", file=sys.stderr)
         return 2
+    try:
+        profiles = load_profiles(args.credentials_file) if args.credentials_file else None
+    except BackupError as exc:
+        print(f"Credential file error: {exc}", file=sys.stderr)
+        return 2
     failures = 0
     for device in devices:
         try:
-            result = backup_device(device, args.output, args.known_hosts)
+            result = backup_device(device, args.output, args.known_hosts, credential_profiles=profiles)
             print(f"OK {result.name}: {result.bytes_written} bytes, SHA256 {result.sha256_hex} -> {result.path}")
         except (BackupError, OSError) as exc:
             # Expected failures do not expose credentials or CLI session output.
