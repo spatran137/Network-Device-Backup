@@ -287,3 +287,14 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 /Python-Network-Backup/Python-Network-Backup/env_PNB
+
+# v1.1 modernization: keep real configurations and credentials out of Git.
+.env
+.env.*
+!.env.example
+known_hosts
+*.pem
+*.key
+backups/
+devices.json
+*.cfg

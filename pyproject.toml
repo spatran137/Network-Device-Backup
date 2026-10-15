@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "network-device-backup"
+version = "1.1.0a1"
+description = "Experimental read-only network configuration backup engine"
+requires-python = ">=3.11"
+dependencies = ["netmiko>=4.4,<5"]
+
+[project.scripts]
+network-backup = "network_backup.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

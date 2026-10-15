@@ -1,0 +1,19 @@
+{
+  "devices": [
+    {
+      "name": "lab-catalyst",
+      "host": "192.0.2.10",
+      "device_type": "cisco_ios",
+      "username_env": "NETWORK_BACKUP_USERNAME",
+      "password_env": "NETWORK_BACKUP_PASSWORD",
+      "enable_secret_env": "NETWORK_BACKUP_ENABLE"
+    },
+    {
+      "name": "lab-edgeswitch",
+      "host": "192.0.2.11",
+      "device_type": "ubiquiti_edgeswitch",
+      "username_env": "NETWORK_BACKUP_USERNAME",
+      "password_env": "NETWORK_BACKUP_PASSWORD"
+    }
+  ]
+}
